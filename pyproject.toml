@@ -1,0 +1,17 @@
+[project]
+name = "hrms_attendance_reconciliation"
+authors = [{ name = "Yasir Shaikh", email = "erp.yasirshaikh@gmail.com" }]
+description = "Re-mark auto attendance when biometric check-ins arrive late for a day already marked Absent"
+requires-python = ">=3.10"
+readme = "README.md"
+dynamic = ["version"]
+
+[build-system]
+requires = ["flit_core >=3.4,<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.bench.dev-dependencies]
+
+[tool.bench.frappe-dependencies]
+frappe = ">=15.0.0,<17.0.0"
+hrms = ">=15.0.0,<17.0.0"
