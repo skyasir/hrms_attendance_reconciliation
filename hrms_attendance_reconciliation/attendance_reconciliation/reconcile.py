@@ -132,7 +132,8 @@ def suppress_unlinked_logs_message():
 @frappe.whitelist()
 def reconcile_shifts(from_date, to_date, shift_type=None):
 	"""Manual run: reconcile every processed date in the range that has an auto-marked
-	Absent and check-ins not linked to any attendance, then mark attendance.
+	Absent and check-ins not linked to any attendance, then mark attendance for each shift
+	(always, like the Mark Attendance button, even when nothing was cancelled).
 
 	Covers one Shift Type, or every Shift Type with auto attendance when none is given
 	(shifts whose auto attendance is not fully set up are skipped). Unlike the automatic
@@ -207,7 +208,7 @@ def reconcile_shift(shift, from_date, to_date):
 			frappe.db.set_value("Employee Checkin", {"name": ["in", to_reopen]}, "skip_auto_attendance", 0)
 			reopened += len(to_reopen)
 
-	result = shift.process_auto_attendance(is_manually_triggered=True) if cancelled else None
+	result = shift.process_auto_attendance(is_manually_triggered=True)
 	return {"cancelled": cancelled, "reopened": reopened, "result": result}
 
 
