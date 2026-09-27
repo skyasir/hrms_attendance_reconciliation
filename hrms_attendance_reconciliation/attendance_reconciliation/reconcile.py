@@ -9,6 +9,8 @@ that shift date. Attendance.on_cancel unlinks its check-ins, so the next auto at
 run re-marks the day from every check-in with the standard hrms rules.
 """
 
+from contextlib import contextmanager
+
 import frappe
 from frappe import _
 from frappe.utils import add_days, get_datetime, getdate
@@ -94,7 +96,8 @@ def cancel_absent(attendance, checkin):
 	try:
 		doc = frappe.get_doc("Attendance", attendance)
 		doc.flags.ignore_permissions = True
-		doc.cancel()
+		with suppress_unlinked_logs_message():
+			doc.cancel()
 		doc.add_comment(
 			"Comment",
 			_(
@@ -107,6 +110,23 @@ def cancel_absent(attendance, checkin):
 		frappe.db.rollback(save_point="attendance_reconciliation")
 		frappe.log_error(title=f"Attendance Reconciliation failed for {attendance}")
 		return False
+
+
+@contextmanager
+def suppress_unlinked_logs_message():
+	"""Drop the "Unlinked logs" popup Attendance.on_cancel shows for its check-ins.
+
+	Unlinking is the point of reconciliation, and a manual run would otherwise stack one
+	popup per cancelled day. Other messages, and cancels done by hand, are left alone.
+	"""
+	start = len(frappe.local.message_log)
+	try:
+		yield
+	finally:
+		title = _("Unlinked logs")
+		frappe.local.message_log[start:] = [
+			m for m in frappe.local.message_log[start:] if not (isinstance(m, dict) and m.get("title") == title)
+		]
 
 
 @frappe.whitelist()

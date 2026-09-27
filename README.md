@@ -34,6 +34,10 @@ Only auto-marked Absents are touched: no leave type, no attendance request, and
 either linked check-ins or the hrms "missing Employee Checkins" comment. An Absent
 entered by hand, a leave or an attendance request is never cancelled.
 
+Frappe HR's "Unlinked logs" popup, which it shows whenever an Attendance with check-ins
+is cancelled, is suppressed for these cancellations only; a manual run would otherwise
+stack one popup per day. Cancelling an Attendance by hand still shows it.
+
 If a cancellation fails, it is rolled back and written to the Error Log. The
 check-in is still saved, so the biometric sync is never blocked. Cancellation
 ignores the syncing user's permissions, so an API user that cannot cancel

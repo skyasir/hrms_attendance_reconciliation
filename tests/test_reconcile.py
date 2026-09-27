@@ -131,9 +131,18 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		run_auto_attendance()
 		self.assertEqual(get_attendance(self.emp, "2026-09-22").status, "Absent")  # below threshold
 
+		# the threshold Absent has the IN linked; cancelling it must not raise hrms's popup
+		frappe.local.message_log = []
 		checkin(self.emp, "2026-09-22 17:00:00", "OUT")
+		self.assertEqual(unlinked_logs_messages(), [])
 		run_auto_attendance()
-		self.assertEqual(get_attendance(self.emp, "2026-09-22").status, "Present")
+		present = get_attendance(self.emp, "2026-09-22")
+		self.assertEqual(present.status, "Present")
+
+		# a cancel done by hand still shows it
+		frappe.local.message_log = []
+		frappe.get_doc("Attendance", present.name).cancel()
+		self.assertEqual(len(unlinked_logs_messages()), 1)
 
 	def test_manual_absent_is_never_cancelled(self):
 		absent = get_attendance(self.manual_emp, "2026-09-21")
@@ -221,6 +230,10 @@ def make_employee(company, first_name):
 		.insert()
 		.name
 	)
+
+
+def unlinked_logs_messages():
+	return [m for m in frappe.local.message_log if isinstance(m, dict) and m.get("title") == "Unlinked logs"]
 
 
 def run_auto_attendance():
