@@ -50,7 +50,7 @@ hrms_attendance_reconciliation.open_reconcile_dialog = (shift_type) => {
 								r.cancelled,
 								r.reopened,
 						  ])
-						: __("No auto-marked Absent in this range has late check-ins.");
+						: __("No auto-marked Absent in this range had late check-ins to reconcile.");
 					if (!r.shifts) {
 						msg = __("No Shift Type has auto attendance fully set up.");
 					}

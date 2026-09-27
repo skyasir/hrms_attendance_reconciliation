@@ -69,7 +69,10 @@ For each shift, in one step it:
 1. cancels auto-marked Absents on days in the range that have check-ins not linked
    to any attendance,
 2. re-opens check-ins that hrms skipped because of that Absent, and
-3. runs Mark Attendance for the shift (only when something was cancelled).
+3. runs Mark Attendance for the shift, the same job the hourly scheduler runs, even
+   when nothing was cancelled, so the day is re-marked at once. The date range only
+   limits which Absents are cancelled; Mark Attendance itself covers the shift's usual
+   window (Process Attendance After to Last Sync of Checkin), as the scheduler does.
 
 This repairs days from **before** the setting was turned on, or from any time a
 cancellation failed. It works whether or not the setting is ticked. Check-ins

@@ -150,6 +150,19 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		checkin(self.manual_emp, "2026-09-21 09:00:00", "IN")
 		self.assertEqual(frappe.db.get_value("Attendance", absent.name, "docstatus"), 1)
 
+	def test_manual_run_marks_attendance_even_with_nothing_to_cancel(self):
+		from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shifts
+
+		with patch.object(
+			frappe.get_doc("Shift Type", SHIFT).__class__, "process_auto_attendance", autospec=True
+		) as mark:
+			mark.return_value = "Attendance has been marked as per employee check-ins."
+			result = reconcile_shifts("2026-09-01", "2026-09-05", shift_type=SHIFT)
+
+		self.assertEqual(result["cancelled"], 0)
+		mark.assert_called_once()
+		self.assertEqual(result["results"], ["Attendance has been marked as per employee check-ins."])
+
 	def test_unprocessed_shift_is_ignored(self):
 		checkin(self.emp, "2026-09-23 09:00:00", "IN")
 		self.assertIsNone(get_attendance(self.emp, "2026-09-23"))
@@ -175,7 +188,7 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		# HR Settings button: no Shift Type given, so every auto attendance shift is covered
 		result = reconcile_shifts("2026-09-19", "2026-09-23")
 		self.assertEqual((result["cancelled"], result["reopened"]), (1, 2))
-		self.assertEqual(len(result["results"]), 1)
+		self.assertEqual(len(result["results"]), result["shifts"])  # Mark Attendance ran for every shift covered
 
 		attendance = get_attendance(self.run_emp, "2026-09-20")
 		self.assertEqual(attendance.status, "Present")
