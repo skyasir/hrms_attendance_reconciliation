@@ -146,7 +146,7 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		self.assertIsNone(get_attendance(self.emp, "2026-09-23"))
 
 	def test_manual_run_repairs_days_skipped_before_setting(self):
-		from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shift
+		from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shifts
 
 		# setting off: hrms skips the late check-ins because the Absent exists
 		frappe.db.set_single_value("HR Settings", SETTING, 0)
@@ -163,8 +163,10 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		frappe.db.set_value("Employee Checkin", by_hand.name, "skip_auto_attendance", 1)
 		absent_21 = get_attendance(self.run_emp, "2026-09-21")
 
-		result = reconcile_shift(SHIFT, "2026-09-19", "2026-09-23")
+		# HR Settings button: no Shift Type given, so every auto attendance shift is covered
+		result = reconcile_shifts("2026-09-19", "2026-09-23")
 		self.assertEqual((result["cancelled"], result["reopened"]), (1, 2))
+		self.assertEqual(len(result["results"]), 1)
 
 		attendance = get_attendance(self.run_emp, "2026-09-20")
 		self.assertEqual(attendance.status, "Present")
@@ -186,6 +188,9 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		frappe.set_user(user.name)
 		try:
 			self.assertFalse(frappe.has_permission("Attendance", "cancel"))
+			from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shifts
+
+			self.assertRaises(frappe.PermissionError, reconcile_shifts, "2026-09-19", "2026-09-23")
 			frappe.get_doc(
 				{
 					"doctype": "Employee Checkin",
