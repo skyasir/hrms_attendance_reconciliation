@@ -11,7 +11,7 @@ run re-marks the day from every check-in with the standard hrms rules.
 
 import frappe
 from frappe import _
-from frappe.utils import get_datetime, getdate
+from frappe.utils import add_days, get_datetime, getdate
 
 SETTING = "reconcile_attendance_with_late_checkins"
 
@@ -102,6 +102,82 @@ def cancel_absent(attendance, checkin):
 				"Attendance will be re-marked from check-ins on the next auto attendance run."
 			).format(checkin),
 		)
+		return True
 	except Exception:
 		frappe.db.rollback(save_point="attendance_reconciliation")
 		frappe.log_error(title=f"Attendance Reconciliation failed for {attendance}")
+		return False
+
+
+@frappe.whitelist()
+def reconcile_shift(shift_type, from_date, to_date):
+	"""Manual run for one shift: reconcile every processed date in the range that has an
+	auto-marked Absent and check-ins not linked to any attendance, then mark attendance.
+
+	Unlike the automatic hook it also re-opens check-ins that hrms already skipped because
+	of the Absent, so it repairs days from before the setting was turned on. Check-ins
+	someone skipped by hand (no hrms skip comment) stay skipped.
+	"""
+	frappe.has_permission("Attendance", "cancel", throw=True)
+	shift = frappe.get_doc("Shift Type", shift_type)
+	shift.check_permission("write")
+
+	if not (shift.enable_auto_attendance and shift.process_attendance_after and shift.last_sync_of_checkin):
+		frappe.throw(_("Enable Auto Attendance and set Process Attendance After and Last Sync of Checkin first."))
+
+	from_date, to_date = getdate(from_date), getdate(to_date)
+	if from_date > to_date:
+		frappe.throw(_("From Date cannot be after To Date."))
+
+	checkins = frappe.get_all(
+		"Employee Checkin",
+		filters={
+			"shift": shift.name,
+			"attendance": ["is", "not set"],
+			"offshift": 0,
+			"shift_start": ["between", [from_date, add_days(to_date, 1)]],
+			"shift_actual_end": ["<", shift.last_sync_of_checkin],
+		},
+		fields=["name", "employee", "shift_start", "skip_auto_attendance"],
+	)
+
+	days = {}
+	for checkin in checkins:
+		attendance_date = getdate(checkin.shift_start)
+		if from_date <= attendance_date <= to_date:
+			days.setdefault((checkin.employee, attendance_date), []).append(checkin)
+
+	cancelled = reopened = 0
+	for (employee, attendance_date), day_checkins in days.items():
+		to_reopen = [c.name for c in day_checkins if c.skip_auto_attendance and skipped_by_hrms(c.name)]
+		if len(to_reopen) + sum(not c.skip_auto_attendance for c in day_checkins) == 0:
+			continue  # every check-in was skipped by hand, nothing to re-mark from
+
+		absents = get_auto_marked_absents(employee, attendance_date)
+		if not absents or not all(cancel_absent(a, day_checkins[0].name) for a in absents):
+			continue
+
+		cancelled += len(absents)
+		if to_reopen:
+			frappe.db.set_value("Employee Checkin", {"name": ["in", to_reopen]}, "skip_auto_attendance", 0)
+			reopened += len(to_reopen)
+
+	result = shift.process_auto_attendance(is_manually_triggered=True) if cancelled else None
+	return {"cancelled": cancelled, "reopened": reopened, "result": result}
+
+
+def skipped_by_hrms(checkin):
+	"""True when hrms set skip_auto_attendance itself, which it records in a comment."""
+	reasons = list({"Reason for skipping auto attendance:", _("Reason for skipping auto attendance:")})
+	return any(
+		frappe.db.exists(
+			"Comment",
+			{
+				"reference_doctype": "Employee Checkin",
+				"reference_name": checkin,
+				"comment_type": "Comment",
+				"content": ["like", f"%{reason}%"],
+			},
+		)
+		for reason in reasons
+	)

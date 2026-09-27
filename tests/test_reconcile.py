@@ -54,7 +54,9 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.get_all(
 			"Company", pluck="name", limit=1
 		)[0]
-		cls.emp, cls.manual_emp = [make_employee(company, n) for n in ("Late Sync", "Manual Absent")]
+		cls.emp, cls.manual_emp, cls.run_emp = [
+			make_employee(company, n) for n in ("Late Sync", "Manual Absent", "Manual Run")
+		]
 		holiday_list = frappe.get_doc(
 			{
 				"doctype": "Holiday List",
@@ -93,7 +95,7 @@ class TestAttendanceReconciliation(unittest.TestCase):
 				"working_hours_threshold_for_absent": 4,
 			}
 		).insert()
-		for employee in (cls.emp, cls.manual_emp):
+		for employee in (cls.emp, cls.manual_emp, cls.run_emp):
 			frappe.db.set_value("Employee", employee, "default_shift", SHIFT)
 
 		# the outage: no check-ins at all, so 20th-22nd are auto-marked Absent
@@ -142,6 +144,33 @@ class TestAttendanceReconciliation(unittest.TestCase):
 	def test_unprocessed_shift_is_ignored(self):
 		checkin(self.emp, "2026-09-23 09:00:00", "IN")
 		self.assertIsNone(get_attendance(self.emp, "2026-09-23"))
+
+	def test_manual_run_repairs_days_skipped_before_setting(self):
+		from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shift
+
+		# setting off: hrms skips the late check-ins because the Absent exists
+		frappe.db.set_single_value("HR Settings", SETTING, 0)
+		skipped = [
+			checkin(self.run_emp, "2026-09-20 09:00:00", "IN"),
+			checkin(self.run_emp, "2026-09-20 17:30:00", "OUT"),
+		]
+		run_auto_attendance()
+		for c in skipped:
+			self.assertEqual(frappe.db.get_value("Employee Checkin", c.name, "skip_auto_attendance"), 1)
+
+		# skipped by hand on the 21st: must stay skipped, and the Absent must stay
+		by_hand = checkin(self.run_emp, "2026-09-21 09:00:00", "IN")
+		frappe.db.set_value("Employee Checkin", by_hand.name, "skip_auto_attendance", 1)
+		absent_21 = get_attendance(self.run_emp, "2026-09-21")
+
+		result = reconcile_shift(SHIFT, "2026-09-19", "2026-09-23")
+		self.assertEqual((result["cancelled"], result["reopened"]), (1, 2))
+
+		attendance = get_attendance(self.run_emp, "2026-09-20")
+		self.assertEqual(attendance.status, "Present")
+		self.assertAlmostEqual(attendance.working_hours, 8.5, places=2)
+		self.assertEqual(frappe.db.get_value("Employee Checkin", by_hand.name, "skip_auto_attendance"), 1)
+		self.assertEqual(frappe.db.get_value("Attendance", absent_21.name, "docstatus"), 1)
 
 	def test_user_without_cancel_permission(self):
 		absent = get_attendance(self.manual_emp, "2026-09-20")

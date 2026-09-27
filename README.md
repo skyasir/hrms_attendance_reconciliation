@@ -41,10 +41,32 @@ Attendance still triggers it.
 
 The setting is off by default; with it off, hrms behaves exactly as before.
 
+## When it runs
+
+- **Cancelling the Absent:** immediately, the moment the late check-in is saved.
+- **Re-marking the day:** on the next auto attendance run. hrms runs it **hourly**
+  (the `hourly_long` scheduler job), so the day is corrected within about an hour.
+  Click **Mark Attendance** on the Shift Type to do it at once. The bench scheduler
+  must be running for the hourly job.
+
+## Manual run
+
+**Shift Type > Reconcile Late Check-ins** (shown when Enable Auto Attendance is on)
+asks for a date range, default the last 30 days, and in one step:
+
+1. cancels auto-marked Absents on days in the range that have check-ins not linked
+   to any attendance,
+2. re-opens check-ins that hrms skipped because of that Absent, and
+3. runs Mark Attendance for the shift.
+
+This repairs days from **before** the setting was turned on, or from any time a
+cancellation failed. It works whether or not the setting is ticked. Check-ins
+someone skipped by hand stay skipped; only check-ins hrms itself skipped (it leaves
+a "Reason for skipping auto attendance" comment) are re-opened. It needs permission
+to cancel Attendance and to edit the Shift Type.
+
 ## Not covered
 
-- Check-ins that were already skipped **before** the setting was turned on are not
-  re-opened. Untick *Skip Auto Attendance* on them and cancel the Absent by hand.
 - There is no check for payroll already processed. A day can change from Absent to
   Present after the salary slip for that period was submitted.
 
