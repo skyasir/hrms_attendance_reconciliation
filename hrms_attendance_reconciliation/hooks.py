@@ -24,3 +24,5 @@ fixtures = [
 		"filters": [["name", "in", ["HR Settings-reconcile_attendance_with_late_checkins"]]],
 	},
 ]
+
+doctype_js = {"Shift Type": "public/js/shift_type.js"}
