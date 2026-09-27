@@ -51,19 +51,27 @@ The setting is off by default; with it off, hrms behaves exactly as before.
 
 ## Manual run
 
-**Shift Type > Reconcile Late Check-ins** (shown when Enable Auto Attendance is on)
-asks for a date range, default the last 30 days, and in one step:
+Two buttons, both asking for a date range (default: the last 30 days):
+
+- **HR Settings > Shift and Attendance > Reconcile Late Check-ins**, under the
+  checkbox: every Shift Type with auto attendance enabled, or one Shift Type if you
+  pick it. Shifts whose auto attendance is not fully set up (no Process Attendance
+  After or Last Sync of Checkin) are skipped and listed.
+- **Shift Type > Reconcile Late Check-ins** (shown when Enable Auto Attendance is
+  on): that shift only.
+
+For each shift, in one step it:
 
 1. cancels auto-marked Absents on days in the range that have check-ins not linked
    to any attendance,
 2. re-opens check-ins that hrms skipped because of that Absent, and
-3. runs Mark Attendance for the shift.
+3. runs Mark Attendance for the shift (only when something was cancelled).
 
 This repairs days from **before** the setting was turned on, or from any time a
 cancellation failed. It works whether or not the setting is ticked. Check-ins
 someone skipped by hand stay skipped; only check-ins hrms itself skipped (it leaves
 a "Reason for skipping auto attendance" comment) are re-opened. It needs permission
-to cancel Attendance and to edit the Shift Type.
+to cancel Attendance and to edit the Shift Types it covers.
 
 ## Not covered
 

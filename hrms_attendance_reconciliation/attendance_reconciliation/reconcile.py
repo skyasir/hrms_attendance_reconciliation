@@ -110,25 +110,50 @@ def cancel_absent(attendance, checkin):
 
 
 @frappe.whitelist()
-def reconcile_shift(shift_type, from_date, to_date):
-	"""Manual run for one shift: reconcile every processed date in the range that has an
-	auto-marked Absent and check-ins not linked to any attendance, then mark attendance.
+def reconcile_shifts(from_date, to_date, shift_type=None):
+	"""Manual run: reconcile every processed date in the range that has an auto-marked
+	Absent and check-ins not linked to any attendance, then mark attendance.
 
-	Unlike the automatic hook it also re-opens check-ins that hrms already skipped because
-	of the Absent, so it repairs days from before the setting was turned on. Check-ins
-	someone skipped by hand (no hrms skip comment) stay skipped.
+	Covers one Shift Type, or every Shift Type with auto attendance when none is given
+	(shifts whose auto attendance is not fully set up are skipped). Unlike the automatic
+	hook it also re-opens check-ins that hrms already skipped because of the Absent, so
+	it repairs days from before the setting was turned on. Check-ins someone skipped by
+	hand (no hrms skip comment) stay skipped.
 	"""
 	frappe.has_permission("Attendance", "cancel", throw=True)
-	shift = frappe.get_doc("Shift Type", shift_type)
-	shift.check_permission("write")
-
-	if not (shift.enable_auto_attendance and shift.process_attendance_after and shift.last_sync_of_checkin):
-		frappe.throw(_("Enable Auto Attendance and set Process Attendance After and Last Sync of Checkin first."))
 
 	from_date, to_date = getdate(from_date), getdate(to_date)
 	if from_date > to_date:
 		frappe.throw(_("From Date cannot be after To Date."))
 
+	names = [shift_type] if shift_type else frappe.get_all(
+		"Shift Type", filters={"enable_auto_attendance": 1}, pluck="name", order_by="name"
+	)
+
+	shifts, not_set_up = [], []
+	for name in names:
+		shift = frappe.get_doc("Shift Type", name)
+		shift.check_permission("write")
+		if shift.enable_auto_attendance and shift.process_attendance_after and shift.last_sync_of_checkin:
+			shifts.append(shift)
+		elif shift_type:
+			frappe.throw(
+				_("Enable Auto Attendance and set Process Attendance After and Last Sync of Checkin first.")
+			)
+		else:
+			not_set_up.append(name)
+
+	results = [reconcile_shift(shift, from_date, to_date) for shift in shifts]
+	return {
+		"shifts": len(shifts),
+		"not_set_up": not_set_up,
+		"cancelled": sum(r["cancelled"] for r in results),
+		"reopened": sum(r["reopened"] for r in results),
+		"results": [r["result"] for r in results if r["result"]],
+	}
+
+
+def reconcile_shift(shift, from_date, to_date):
 	checkins = frappe.get_all(
 		"Employee Checkin",
 		filters={

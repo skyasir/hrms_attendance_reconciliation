@@ -21,8 +21,20 @@ doc_events = {
 fixtures = [
 	{
 		"doctype": "Custom Field",
-		"filters": [["name", "in", ["HR Settings-reconcile_attendance_with_late_checkins"]]],
+		"filters": [
+			[
+				"name",
+				"in",
+				[
+					"HR Settings-reconcile_attendance_with_late_checkins",
+					"HR Settings-reconcile_late_checkins_now",
+				],
+			]
+		],
 	},
 ]
 
-doctype_js = {"Shift Type": "public/js/shift_type.js"}
+doctype_js = {
+	"Shift Type": "public/js/reconcile.js",
+	"HR Settings": "public/js/reconcile.js",
+}
