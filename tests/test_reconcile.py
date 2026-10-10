@@ -227,22 +227,51 @@ class TestAttendanceReconciliation(unittest.TestCase):
 
 
 def make_employee(company, first_name):
-	return (
-		frappe.get_doc(
-			{
-				"doctype": "Employee",
-				"first_name": first_name,
-				"last_name": "_Test Reconcile",
-				"company": company,
-				"gender": frappe.get_all("Gender", pluck="name", limit=1)[0],
-				"date_of_birth": "1990-01-01",
-				"date_of_joining": "2020-01-01",
-				"status": "Active",
-			}
-		)
-		.insert()
-		.name
+	employee = frappe.get_doc(
+		{
+			"doctype": "Employee",
+			"first_name": first_name,
+			"last_name": "_Test Reconcile",
+			"company": company,
+			"gender": frappe.get_all("Gender", pluck="name", limit=1)[0],
+			"date_of_birth": "1990-01-01",
+			"date_of_joining": "2020-01-01",
+			"status": "Active",
+		}
 	)
+	return fill_site_mandatory_fields(employee).insert().name
+
+
+def fill_site_mandatory_fields(doc):
+	"""Give a value to any mandatory field this site added that we do not set.
+
+	Employee is heavily customised in the wild - a Custom Field marked required, or
+	a standard field made required by a Property Setter. Both land in the meta, so
+	neither is visible from this repo. The test only needs the document to save, so
+	fill whatever is still empty with a harmless value of the right type rather than
+	hardcoding any one site's fields.
+	"""
+	for df in doc.meta.get("fields", {"reqd": 1}):
+		if doc.get(df.fieldname):
+			continue
+
+		value = None
+		if df.fieldtype == "Select":
+			options = [o for o in (df.options or "").splitlines() if o.strip()]
+			value = options[0] if options else "_Test"
+		elif df.fieldtype == "Link" and df.options:
+			value = frappe.db.get_value(df.options, {}, "name")
+		elif df.fieldtype in ("Date", "Datetime"):
+			value = "2020-01-01"
+		elif df.fieldtype in ("Int", "Float", "Currency", "Percent"):
+			value = 1
+		elif df.fieldtype not in ("Check", "Table", "Table MultiSelect"):
+			value = f"_Test {frappe.generate_hash(length=6)}"
+
+		if value is not None:
+			doc.set(df.fieldname, value)
+
+	return doc
 
 
 def unlinked_logs_messages():
