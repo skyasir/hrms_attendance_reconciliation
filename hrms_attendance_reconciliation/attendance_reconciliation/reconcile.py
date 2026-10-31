@@ -4,8 +4,10 @@ When a device stops syncing, auto attendance marks the missing days Absent. Once
 check-ins arrive, hrms cannot create attendance over the existing Absent, so it sets
 `skip_auto_attendance` on them and they are never processed.
 
-This hook runs when such a check-in is inserted. It cancels the auto-marked Absent for
-that shift date. Attendance.on_cancel unlinks its check-ins, so the next auto attendance
+This hook runs when such a check-in is saved with a shift for the first time: when it is
+inserted, or when Fetch Shift gives a shift to a check-in that was saved off-shift (for
+example after a backdated Shift Assignment). It cancels the auto-marked Absent for that
+shift date. Attendance.on_cancel unlinks its check-ins, so the next auto attendance
 run re-marks the day from every check-in with the standard hrms rules.
 """
 
@@ -22,6 +24,11 @@ MISSING_CHECKINS_COMMENT = "Employee was marked Absent due to missing Employee C
 
 
 def reconcile_late_checkin(doc, method=None):
+	# on_update: runs on insert too (no previous version, so "changed" is true), and
+	# again when Fetch Shift fills in or moves the shift; any other edit is ignored
+	if not (doc.has_value_changed("shift") or doc.has_value_changed("shift_start")):
+		return
+
 	if not frappe.db.get_single_value("HR Settings", SETTING):
 		return
 

@@ -18,7 +18,9 @@ Last Sync of Checkin** is on in the Shift Type.
 ## What it does
 
 Tick **HR Settings > Shift and Attendance > Reconcile Attendance with Late
-Check-ins**. Then, when a check-in is inserted:
+Check-ins**. Then, when a check-in is saved with a shift for the first time (a new
+check-in, or **Fetch Shift** on one that was saved off-shift, e.g. after a backdated
+Shift Assignment):
 
 1. If its shift has already been processed by auto attendance (the shift ended
    before the Shift Type's *Last Sync of Checkin*), and

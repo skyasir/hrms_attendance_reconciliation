@@ -54,8 +54,8 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		company = frappe.db.get_single_value("Global Defaults", "default_company") or frappe.get_all(
 			"Company", pluck="name", limit=1
 		)[0]
-		cls.emp, cls.manual_emp, cls.run_emp = [
-			make_employee(company, n) for n in ("Late Sync", "Manual Absent", "Manual Run")
+		cls.emp, cls.manual_emp, cls.run_emp, cls.fetch_emp = [
+			make_employee(company, n) for n in ("Late Sync", "Manual Absent", "Manual Run", "Fetch Later")
 		]
 		holiday_list = frappe.get_doc(
 			{
@@ -95,7 +95,7 @@ class TestAttendanceReconciliation(unittest.TestCase):
 				"working_hours_threshold_for_absent": 4,
 			}
 		).insert()
-		for employee in (cls.emp, cls.manual_emp, cls.run_emp):
+		for employee in (cls.emp, cls.manual_emp, cls.run_emp, cls.fetch_emp):
 			frappe.db.set_value("Employee", employee, "default_shift", SHIFT)
 
 		# the outage: no check-ins at all, so 20th-22nd are auto-marked Absent
@@ -143,6 +143,41 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		frappe.local.message_log = []
 		frappe.get_doc("Attendance", present.name).cancel()
 		self.assertEqual(len(unlinked_logs_messages()), 1)
+
+	def test_fetch_shift_after_absent(self):
+		from hrms.hr.doctype.employee_checkin.employee_checkin import bulk_fetch_shift
+
+		absent = get_attendance(self.fetch_emp, "2026-09-21")
+		self.assertEqual(absent.status, "Absent")
+
+		# punches saved before the employee had a shift: off-shift, nothing to reconcile
+		frappe.db.set_value("Employee", self.fetch_emp, "default_shift", None)
+		punches = [
+			checkin(self.fetch_emp, "2026-09-21 09:00:00", "IN"),
+			checkin(self.fetch_emp, "2026-09-21 17:00:00", "OUT"),
+		]
+		self.assertTrue(all(frappe.db.get_value("Employee Checkin", p.name, "offshift") for p in punches))
+		self.assertEqual(frappe.db.get_value("Attendance", absent.name, "docstatus"), 1)
+
+		# shift assigned later, then Actions > Fetch Shifts in the list
+		frappe.db.set_value("Employee", self.fetch_emp, "default_shift", SHIFT)
+		bulk_fetch_shift([p.name for p in punches])
+		self.assertEqual(frappe.db.get_value("Attendance", absent.name, "docstatus"), 2)
+
+		run_auto_attendance()
+		self.assertEqual(get_attendance(self.fetch_emp, "2026-09-21").status, "Present")
+
+	def test_unrelated_edit_does_not_reconcile(self):
+		absent = get_attendance(self.fetch_emp, "2026-09-22")
+		frappe.db.set_single_value("HR Settings", SETTING, 0)
+		punch = checkin(self.fetch_emp, "2026-09-22 09:00:00", "IN")
+		frappe.db.set_single_value("HR Settings", SETTING, 1)
+
+		# an edit that does not touch the shift leaves the Absent alone
+		punch.reload()
+		punch.device_id = "Gate 2"
+		punch.save()
+		self.assertEqual(frappe.db.get_value("Attendance", absent.name, "docstatus"), 1)
 
 	def test_manual_absent_is_never_cancelled(self):
 		absent = get_attendance(self.manual_emp, "2026-09-21")
