@@ -163,6 +163,25 @@ class TestAttendanceReconciliation(unittest.TestCase):
 		mark.assert_called_once()
 		self.assertEqual(result["results"], ["Attendance has been marked as per employee check-ins."])
 
+	def test_manual_run_for_one_employee(self):
+		from hrms_attendance_reconciliation.attendance_reconciliation.reconcile import reconcile_shifts
+
+		# setting off: hrms skips the late check-ins of both employees on the 22nd
+		frappe.db.set_single_value("HR Settings", SETTING, 0)
+		for employee in (self.run_emp, self.manual_emp):
+			checkin(employee, "2026-09-22 09:00:00", "IN")
+			checkin(employee, "2026-09-22 17:00:00", "OUT")
+		run_auto_attendance()
+		other_absent = get_attendance(self.manual_emp, "2026-09-22")
+
+		result = reconcile_shifts("2026-09-22", "2026-09-22", shift_type=SHIFT, employee=self.run_emp)
+		self.assertEqual((result["cancelled"], result["reopened"]), (1, 2))
+		self.assertEqual(get_attendance(self.run_emp, "2026-09-22").status, "Present")
+
+		# the other employee is left as it was
+		self.assertEqual(frappe.db.get_value("Attendance", other_absent.name, "docstatus"), 1)
+		self.assertEqual(get_attendance(self.manual_emp, "2026-09-22").status, "Absent")
+
 	def test_unprocessed_shift_is_ignored(self):
 		checkin(self.emp, "2026-09-23 09:00:00", "IN")
 		self.assertIsNone(get_attendance(self.emp, "2026-09-23"))
