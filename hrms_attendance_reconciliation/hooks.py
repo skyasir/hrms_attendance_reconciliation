@@ -14,7 +14,7 @@ required_apps = ["hrms"]
 
 doc_events = {
 	"Employee Checkin": {
-		"after_insert": "hrms_attendance_reconciliation.attendance_reconciliation.reconcile.reconcile_late_checkin",
+		"on_update": "hrms_attendance_reconciliation.attendance_reconciliation.reconcile.reconcile_late_checkin",
 	},
 }
 
