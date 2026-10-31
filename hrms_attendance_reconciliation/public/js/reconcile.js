@@ -22,6 +22,14 @@ hrms_attendance_reconciliation.open_reconcile_dialog = (shift_type) => {
 				read_only: shift_type ? 1 : 0,
 			},
 			{
+				fieldname: "employee",
+				fieldtype: "Link",
+				options: "Employee",
+				label: __("Employee"),
+				description: __("Leave empty for every employee."),
+				get_query: () => ({ filters: { status: "Active" } }),
+			},
+			{
 				fieldname: "from_date",
 				fieldtype: "Date",
 				label: __("From Date"),

@@ -64,6 +64,11 @@ Two buttons, both asking for a date range (default: the last 30 days):
 - **Shift Type > Reconcile Late Check-ins** (shown when Enable Auto Attendance is
   on): that shift only.
 
+Both dialogs also take an optional **Employee**. It narrows the run to that employee, the
+same way the dates do: only their Absents are cancelled and only their skipped check-ins
+re-opened. Mark Attendance still runs for the whole shift, which only fills in attendance
+that is missing.
+
 For each shift, in one step it:
 
 1. cancels auto-marked Absents on days in the range that have check-ins not linked

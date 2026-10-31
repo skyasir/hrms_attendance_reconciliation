@@ -130,18 +130,21 @@ def suppress_unlinked_logs_message():
 
 
 @frappe.whitelist()
-def reconcile_shifts(from_date, to_date, shift_type=None):
+def reconcile_shifts(from_date, to_date, shift_type=None, employee=None):
 	"""Manual run: reconcile every processed date in the range that has an auto-marked
 	Absent and check-ins not linked to any attendance, then mark attendance for each shift
 	(always, like the Mark Attendance button, even when nothing was cancelled).
 
 	Covers one Shift Type, or every Shift Type with auto attendance when none is given
-	(shifts whose auto attendance is not fully set up are skipped). Unlike the automatic
+	(shifts whose auto attendance is not fully set up are skipped). An Employee narrows the
+	cancelling and re-opening to that employee, like the dates do. Unlike the automatic
 	hook it also re-opens check-ins that hrms already skipped because of the Absent, so
 	it repairs days from before the setting was turned on. Check-ins someone skipped by
 	hand (no hrms skip comment) stay skipped.
 	"""
 	frappe.has_permission("Attendance", "cancel", throw=True)
+	if employee:
+		frappe.has_permission("Employee", "read", doc=employee, throw=True)
 
 	from_date, to_date = getdate(from_date), getdate(to_date)
 	if from_date > to_date:
@@ -164,7 +167,7 @@ def reconcile_shifts(from_date, to_date, shift_type=None):
 		else:
 			not_set_up.append(name)
 
-	results = [reconcile_shift(shift, from_date, to_date) for shift in shifts]
+	results = [reconcile_shift(shift, from_date, to_date, employee) for shift in shifts]
 	return {
 		"shifts": len(shifts),
 		"not_set_up": not_set_up,
@@ -174,16 +177,20 @@ def reconcile_shifts(from_date, to_date, shift_type=None):
 	}
 
 
-def reconcile_shift(shift, from_date, to_date):
+def reconcile_shift(shift, from_date, to_date, employee=None):
+	filters = {
+		"shift": shift.name,
+		"attendance": ["is", "not set"],
+		"offshift": 0,
+		"shift_start": ["between", [from_date, add_days(to_date, 1)]],
+		"shift_actual_end": ["<", shift.last_sync_of_checkin],
+	}
+	if employee:
+		filters["employee"] = employee
+
 	checkins = frappe.get_all(
 		"Employee Checkin",
-		filters={
-			"shift": shift.name,
-			"attendance": ["is", "not set"],
-			"offshift": 0,
-			"shift_start": ["between", [from_date, add_days(to_date, 1)]],
-			"shift_actual_end": ["<", shift.last_sync_of_checkin],
-		},
+		filters=filters,
 		fields=["name", "employee", "shift_start", "skip_auto_attendance"],
 	)
 
