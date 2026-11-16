@@ -3,6 +3,19 @@
 Re-marks auto attendance when biometric check-ins arrive late for a day that
 Frappe HR already marked **Absent**.
 
+## Screenshots
+
+![Auto attendance marked Ravi Absent: his device had not synced](docs/screenshots/1-absent.png)
+*Auto attendance marked Ravi Absent: his device had not synced*
+
+![The late check-in arrives and the Absent is cancelled, with a comment saying why](docs/screenshots/2-cancelled.png)
+*The late check-in arrives and the Absent is cancelled, with a comment saying why*
+
+![The next auto attendance run marks him Present from the check-ins](docs/screenshots/3-re-marked.png)
+*The next auto attendance run marks him Present from the check-ins*
+
+Recorded on a demo site with made-up data.
+
 ## The problem
 
 A biometric device stops syncing for a day or two. Auto Attendance keeps running,
